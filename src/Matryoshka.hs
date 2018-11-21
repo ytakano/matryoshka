@@ -29,7 +29,6 @@ data Expr = Val Value
 parserTop = do
     return $ Val (Num 10)
 
-parseHelper :: P.Stream s Identity t => P.Parsec s () a -> s -> Either P.ParseError a
 parseHelper rule text = P.parse rule "(stdin)" text
 
 parse :: String -> Either P.ParseError Expr
