@@ -8,12 +8,12 @@ module Matryoshka
 
 import           Control.Monad
 import           Control.Monad.Identity (Identity)
+import           Text.Parsec            ((<|>))
 import qualified Text.Parsec            as P
 
 data Value = Atom String
            | Num Int
            | Var String
-           | PFun String
            | Lambda String Expr deriving (Show)
 
 data Expr = Val Value
@@ -27,9 +27,23 @@ data Expr = Val Value
           | Recv Expr deriving (Show)
 
 parserTop = do
-    return $ Val (Num 10)
+    val <- parseValue
+    return $ val
 
-parseHelper rule text = P.parse rule "(stdin)" text
+parseValue = do
+    val <- (P.try parseNum) <|> parseAtom
+    return val
 
-parse :: String -> Either P.ParseError Expr
-parse expr = parseHelper parserTop expr
+parseNum = do
+    h <- P.oneOf ['1'..'9']
+    t <- P.many P.digit
+    return . Val . Num . read $ h:t
+
+parseAtom = do
+    h <- P.char '#'
+    t0 <- P.alphaNum
+    t1 <- P.many P.alphaNum
+    return . Val . Atom $ h:t0:t1
+
+parse :: String -> String -> Either P.ParseError Expr
+parse file text = P.parse parserTop file text

@@ -1,6 +1,10 @@
 module Lib
-    ( someFunc
+    ( parseFile
     ) where
 
-someFunc :: IO ()
-someFunc = putStrLn "someFunc"
+import qualified Matryoshka as M
+
+text = "#1234"
+
+parseFile = do
+    print result where result = M.parse "test" text
