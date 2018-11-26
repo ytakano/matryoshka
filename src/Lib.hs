@@ -2,9 +2,9 @@ module Lib
     ( parseFile
     ) where
 
-import qualified Matryoshka as M
+import qualified Parser as P
 
-text = "#1234"
+text = "if (\\x x, y (1), #false) (2) "
 
 parseFile = do
-    print result where result = M.parse "test" text
+    print result where result = P.parse "test" text
