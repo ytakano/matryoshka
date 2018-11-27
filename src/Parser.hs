@@ -10,6 +10,7 @@ import           Control.Monad
 import           Control.Monad.Identity (Identity)
 import           Text.Parsec            ((<|>))
 import qualified Text.Parsec            as P
+import Debug.Trace
 
 data Value = Atom String
            | Num Int
@@ -18,7 +19,6 @@ data Value = Atom String
 
 data Expr = Val Value
           | Apply Expr Expr
-          | PrimtiveFun String [Expr]
           | If Expr Expr Expr
           | Spawn Expr [Expr]
           | Clone Expr [Expr]
@@ -27,51 +27,64 @@ data Expr = Val Value
           | Recv Expr deriving (Show)
 
 parseExpr = do
-    e1 <- (P.try parseIf) <|>
-          parseValue
-    e2 <- (P.try $ parseApply e1) <|> return Nothing
+    _ <- P.spaces
+    h <- P.oneOf $ ['a'..'z'] ++ ['A'..'Z'] ++ ['\\'] ++ ['#'] ++ ['1'..'9']
+
+    e1 <- case h of
+        '\\' -> do
+            e <- parseLambda
+            return $ Val e
+        '#' -> do
+            e <- parseAtom
+            return $ Val e
+        otherwise -> parseNumFunc h
+
+    e2 <-  trace(show e1) $ parseApply e1
     return $ case e2 of
         Nothing -> e1
-        Just e  -> e
+        Just e -> e
 
-parseValue = do
-    val <- (P.try parseNum)    <|>
-           (P.try parseAtom)   <|>
-           (P.try parseLambda) <|>
-           parseVar
-    return $ Val val
+parseNumFunc h
+    | '1' <= h && h <= '9' = do
+        e <- parseNum h
+        return $ Val e
+    | otherwise = parseFunc h
 
-parseNum = do
-    h <- P.oneOf ['1'..'9']
+parseFunc h = do
+    t <- P.many P.alphaNum
+    parseFunc2 $ h:t
+
+parseFunc2 s = do
+    _ <- P.spaces
+    _ <- P.char '('
+    _ <- P.spaces
+    e <- parseFunc3 s
+    return e
+
+parseFunc3 s
+    | s == "if" = parseIf
+    | s == "ch" = parseCh
+    | otherwise = do
+        return . Val $ Var s
+
+parseNum h = do
     t <- P.many P.digit
     return . Num . read $ h:t
 
 parseAtom = do
-    h <- P.char '#'
     t0 <- P.alphaNum
     t1 <- P.many P.alphaNum
-    return . Atom $ h:t0:t1
+    return . Atom $ '#':t0:t1
 
 parseLambda = do
-    _ <- P.char '\\'
-    h <- (P.try $ P.oneOf ['a'..'z']) <|> P.oneOf ['A'..'Z']
+    h <- P.oneOf $ ['a'..'z'] ++ ['A'..'Z']
     t <- P.many P.alphaNum
     _ <- P.space
     _ <- P.spaces
     expr <- parseExpr
     return $ Lambda (h:t) expr
 
-parseVar = do
-    h <- (P.try $ P.oneOf ['a'..'z']) <|> P.oneOf ['A'..'Z']
-    t <- P.many P.alphaNum
-    return $ Var (h:t)
-
 parseIf = do
-    _ <- P.string "if"
-    _ <- P.spaces
-    _ <- P.char '('
-    _ <- P.spaces
-
     e1 <- parseExpr
     _ <- P.spaces
     _ <- P.char ','
@@ -88,16 +101,49 @@ parseIf = do
 
     return $ If e1 e2 e3
 
+parseParen = do
+    p <- (P.try $ P.char '(') <|> return 'z'
+    return $ trace(show p) $ case p of
+        '(' -> Just p
+        _ -> Nothing
+
 parseApply expr = do
     _ <- P.spaces
-    _ <- P.char '('
-    arg <- parseExpr
+    p <- parseParen
+    e <-  trace(show p) $ parseApply2 p expr
+    return e
+
+parseApply2 p expr
+    | p == Nothing = do
+        return Nothing
+    | otherwise = do
+        _ <- P.spaces
+        arg <- parseExpr
+
+        _ <- P.spaces
+        _ <- P.char ')'
+
+        apply <- parseApply expr
+        return $ case apply of
+            Nothing -> Just $ Apply expr arg
+            Just a  -> Just $ a
+
+parseCh = do
+    h1 <- P.oneOf ['1'..'9']
+    t1 <- P.many P.digit
+
+    _ <- P.spaces
+    _ <- P.char ','
+    _ <- P.spaces
+
+    h2 <- P.oneOf ['1'..'9']
+    t2 <- P.many P.digit
+
     _ <- P.spaces
     _ <- P.char ')'
-    apply <- (P.try $ parseApply (Apply expr arg)) <|> return Nothing
-    return $ case apply of
-        Nothing -> Just $ Apply expr arg
-        Just a  -> Just $ a
+    _ <- P.spaces
+
+    return $ Ch (read $ h1:t1) (read $ h2:t2)
 
 parse :: String -> String -> Either P.ParseError Expr
 parse file text = P.parse parseExpr file text

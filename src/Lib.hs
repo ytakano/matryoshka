@@ -4,7 +4,7 @@ module Lib
 
 import qualified Parser as P
 
-text = "if (\\x x, y (1), #false) (2) "
+text = "x(3)"
 
 parseFile = do
     print result where result = P.parse "test" text
