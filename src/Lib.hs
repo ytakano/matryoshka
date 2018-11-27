@@ -4,7 +4,7 @@ module Lib
 
 import qualified Parser as P
 
-text = "x(3)"
+text = "\\x x(3)(y)(z)"
 
 parseFile = do
     print result where result = P.parse "test" text

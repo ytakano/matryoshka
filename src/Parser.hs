@@ -37,31 +37,28 @@ parseExpr = do
         '#' -> do
             e <- parseAtom
             return $ Val e
-        otherwise -> parseNumFunc h
+        otherwise -> parseNumFuncVar h
 
-    e2 <-  trace(show e1) $ parseApply e1
+    e2 <- parseApply e1
     return $ case e2 of
         Nothing -> e1
         Just e -> e
 
-parseNumFunc h
+parseNumFuncVar h
     | '1' <= h && h <= '9' = do
         e <- parseNum h
         return $ Val e
-    | otherwise = parseFunc h
+    | otherwise = parseFuncVar h
 
-parseFunc h = do
+parseFuncVar h = do
     t <- P.many P.alphaNum
-    parseFunc2 $ h:t
+    parseFuncVar2 $ h:t
 
-parseFunc2 s = do
-    _ <- P.spaces
-    _ <- P.char '('
-    _ <- P.spaces
-    e <- parseFunc3 s
+parseFuncVar2 s = do
+    e <- parseFuncVar3 s
     return e
 
-parseFunc3 s
+parseFuncVar3 s
     | s == "if" = parseIf
     | s == "ch" = parseCh
     | otherwise = do
@@ -85,6 +82,10 @@ parseLambda = do
     return $ Lambda (h:t) expr
 
 parseIf = do
+    _ <- P.spaces
+    _ <- P.char '('
+    _ <- P.spaces
+
     e1 <- parseExpr
     _ <- P.spaces
     _ <- P.char ','
@@ -101,34 +102,33 @@ parseIf = do
 
     return $ If e1 e2 e3
 
-parseParen = do
-    p <- (P.try $ P.char '(') <|> return 'z'
-    return $ trace(show p) $ case p of
-        '(' -> Just p
-        _ -> Nothing
-
 parseApply expr = do
     _ <- P.spaces
-    p <- parseParen
-    e <-  trace(show p) $ parseApply2 p expr
+    p <- (P.try $ P.char '(') <|> return '-'
+    e <- parseApply2 p expr
     return e
 
 parseApply2 p expr
-    | p == Nothing = do
+    | p /= '(' = do
         return Nothing
     | otherwise = do
         _ <- P.spaces
-        arg <- parseExpr
+
+        arg <- (trace $ "expr: " ++ show expr) $ parseExpr
 
         _ <- P.spaces
         _ <- P.char ')'
 
-        apply <- parseApply expr
-        return $ case apply of
+        apply <- parseApply $ Apply expr arg
+        return $ (trace $ show apply ) $ case apply of
             Nothing -> Just $ Apply expr arg
             Just a  -> Just $ a
 
 parseCh = do
+    _ <- P.spaces
+    _ <- P.char '('
+    _ <- P.spaces
+
     h1 <- P.oneOf ['1'..'9']
     t1 <- P.many P.digit
 
