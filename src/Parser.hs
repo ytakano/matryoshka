@@ -10,7 +10,7 @@ import           Control.Monad
 import           Control.Monad.Identity (Identity)
 import           Text.Parsec            ((<|>))
 import qualified Text.Parsec            as P
-import Debug.Trace
+--import Debug.Trace
 
 data Value = Atom String
            | Num Int
@@ -28,7 +28,7 @@ data Expr = Val Value
 
 parseExpr = do
     _ <- P.spaces
-    h <- P.oneOf $ ['a'..'z'] ++ ['A'..'Z'] ++ ['\\'] ++ ['#'] ++ ['1'..'9']
+    h <- P.oneOf $ ['a'..'z'] ++ ['A'..'Z'] ++ ['\\'] ++ ['#'] ++ ['1'..'9'] ++ ['(']
 
     e1 <- case h of
         '\\' -> do
@@ -37,12 +37,18 @@ parseExpr = do
         '#' -> do
             e <- parseAtom
             return $ Val e
+        '(' -> do
+            _ <- P.spaces
+            e <- parseExpr
+            _ <- P.spaces
+            _ <- P.char ')'
+            return e
         otherwise -> parseNumFuncVar h
 
     e2 <- parseApply e1
     return $ case e2 of
         Nothing -> e1
-        Just e -> e
+        Just e  -> e
 
 parseNumFuncVar h
     | '1' <= h && h <= '9' = do
@@ -61,6 +67,8 @@ parseFuncVar2 s = do
 parseFuncVar3 s
     | s == "if" = parseIf
     | s == "ch" = parseCh
+    | s == "send" = parseSend
+    | s == "recv" = parseRecv
     | otherwise = do
         return . Val $ Var s
 
@@ -114,13 +122,13 @@ parseApply2 p expr
     | otherwise = do
         _ <- P.spaces
 
-        arg <- (trace $ "expr: " ++ show expr) $ parseExpr
+        arg <- parseExpr
 
         _ <- P.spaces
         _ <- P.char ')'
 
         apply <- parseApply $ Apply expr arg
-        return $ (trace $ show apply ) $ case apply of
+        return $ case apply of
             Nothing -> Just $ Apply expr arg
             Just a  -> Just $ a
 
@@ -144,6 +152,34 @@ parseCh = do
     _ <- P.spaces
 
     return $ Ch (read $ h1:t1) (read $ h2:t2)
+
+parseSend = do
+    _ <- P.spaces
+    _ <- P.char '('
+    _ <- P.spaces
+
+    e1 <- parseExpr
+    _ <- P.spaces
+    _ <- P.char ','
+    _ <- P.spaces
+
+    e2 <- parseExpr
+    _ <- P.spaces
+    _ <- P.char ')'
+
+    return $ Send e1 e2
+
+parseRecv = do
+    _ <- P.spaces
+    _ <- P.char '('
+    _ <- P.spaces
+
+    e <- parseExpr
+
+    _ <- P.spaces
+    _ <- P.char ')'
+
+    return $ Recv e
 
 parse :: String -> String -> Either P.ParseError Expr
 parse file text = P.parse parseExpr file text
