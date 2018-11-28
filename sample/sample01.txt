@@ -1,0 +1,4 @@
+letrec fun = \c
+    send(c, 0)
+in
+    spawn(fun, ch(0, 1))
