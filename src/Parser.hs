@@ -24,11 +24,13 @@ data Expr = Val Value
           | Clone Expr [Expr]
           | Ch Int Int
           | Send Expr Expr
-          | Recv Expr deriving (Show)
+          | Recv Expr
+          | Let String Expr Expr
+          | Letrec String Expr Expr deriving (Show)
 
 parseExpr = do
     _ <- P.spaces
-    h <- P.oneOf $ ['a'..'z'] ++ ['A'..'Z'] ++ ['\\'] ++ ['#'] ++ ['1'..'9'] ++ ['(']
+    h <- P.oneOf $ ['a'..'z'] ++ ['A'..'Z'] ++ ['\\'] ++ ['#'] ++ ['0'..'9'] ++ ['(']
 
     e1 <- case h of
         '\\' -> do
@@ -51,8 +53,11 @@ parseExpr = do
         Just e  -> e
 
 parseNumFuncVar h
-    | '1' <= h && h <= '9' = do
-        e <- parseNum h
+    | '0' <= h && h <= '9' = do
+        e <- case h of
+            '0' -> do
+                return $ Num 0
+            otherwise -> parseNum h
         return $ Val e
     | otherwise = parseFuncVar h
 
@@ -70,6 +75,10 @@ parseFuncVar3 s
     | s == "send" = parseSend
     | s == "recv" = parseRecv
     | s == "spawn" = parseSpawn
+    | s == "let" = parseLet
+    | s == "letrec" = do
+        Let v e1 e2 <- parseLet
+        return $ Letrec v e1 e2
     | otherwise = do
         return . Val $ Var s
 
@@ -133,26 +142,34 @@ parseApply2 p expr
             Nothing -> Just $ Apply expr arg
             Just a  -> Just $ a
 
+parseInt = do
+    h <- P.digit
+    n <- case h of
+        '0' -> do
+            return "0"
+        otherowse -> do
+            t <- P.many P.digit
+            return $ h:t
+    return $ read n
+
 parseCh = do
     _ <- P.spaces
     _ <- P.char '('
     _ <- P.spaces
 
-    h1 <- P.oneOf ['1'..'9']
-    t1 <- P.many P.digit
+    n1 <- parseInt
 
     _ <- P.spaces
     _ <- P.char ','
     _ <- P.spaces
 
-    h2 <- P.oneOf ['1'..'9']
-    t2 <- P.many P.digit
+    n2 <- parseInt
 
     _ <- P.spaces
     _ <- P.char ')'
     _ <- P.spaces
 
-    return $ Ch (read $ h1:t1) (read $ h2:t2)
+    return $ Ch n1 n2
 
 parseSend = do
     _ <- P.spaces
@@ -199,7 +216,7 @@ parseArgs = do
     _ <- P.spaces
     _ <- P.char ')'
 
-    return args
+    return $ reverse args
 
 parseArgs2 args = do
     _ <- P.spaces
@@ -215,6 +232,27 @@ parseArgs2 args = do
             return $ e:args
 
     return result
+
+parseLet = do
+    _ <- P.space
+    _ <- P.spaces
+
+    h <- P.oneOf $ ['a'..'z'] ++ ['A'..'Z']
+    t <- P.many P.alphaNum
+
+    _ <- P.spaces
+    _ <- P.char '='
+    _ <- P.spaces
+
+    e1 <- parseExpr
+
+    _ <- P.spaces
+    _ <- P.string "in"
+    _ <- P.space
+
+    e2 <- parseExpr
+
+    return $ Let (h:t) e1 e2
 
 parse :: String -> String -> Either P.ParseError Expr
 parse file text = P.parse parseExpr file text

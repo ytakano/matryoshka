@@ -4,7 +4,7 @@ module Lib
 
 import qualified Parser as P
 
-text = "(\\x x(3))(y)(spawn(1, 2, 3))"
+text = "letrec fun = \\c send(c, 0) in spawn(fun, ch(0, 1))"
 
 parseFile = do
     print result where result = P.parse "test" text
