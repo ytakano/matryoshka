@@ -7,4 +7,5 @@ import qualified Parser as P
 text = "letrec fun = \\c send(c, 0) in spawn(fun, ch(0, 1))"
 
 parseFile = do
-    print result where result = P.parse "test" text
+    putStrLn $ "input: " ++ text
+    putStrLn $ "output: " ++ show (P.parse "test" text)
