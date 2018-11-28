@@ -69,6 +69,7 @@ parseFuncVar3 s
     | s == "ch" = parseCh
     | s == "send" = parseSend
     | s == "recv" = parseRecv
+    | s == "spawn" = parseSpawn
     | otherwise = do
         return . Val $ Var s
 
@@ -180,6 +181,40 @@ parseRecv = do
     _ <- P.char ')'
 
     return $ Recv e
+
+parseClone = do
+    a:args <- parseArgs
+    return $ Clone a args
+
+parseSpawn = do
+    a:args <- parseArgs
+    return $ Spawn a args
+
+parseArgs = do
+    _ <- P.spaces
+    _ <- P.char '('
+
+    args <- parseArgs2 []
+
+    _ <- P.spaces
+    _ <- P.char ')'
+
+    return args
+
+parseArgs2 args = do
+    _ <- P.spaces
+    e <- parseExpr
+    _ <- P.spaces
+    c <- (P.try $ P.char ',') <|> return ' '
+
+    result <- case c of
+        ',' -> do
+            e2 <- parseArgs2 $ e:args
+            return e2
+        otherwise -> do
+            return $ e:args
+
+    return result
 
 parse :: String -> String -> Either P.ParseError Expr
 parse file text = P.parse parseExpr file text
